@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balcão Suplementos Pro</title>
+<meta name="theme-color" content="#0ea5e9">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { background: #0f172a; color: #e2e8f0; padding-bottom: 80px; }
+ .header { background: #1e293b; padding: 16px; text-align: center; font-weight: 700; font-size: 18px; position: sticky; top: 0; z-index: 10; display:flex; justify-content:space-between; align-items:center; }
+ .tabs { display: flex; background: #1e293b; position: fixed; bottom: 0; width: 100%; border-top: 1px solid #334155; }
+ .tab { flex: 1; padding: 12px 4px; text-align: center; font-size: 11px; color: #94a3b8; cursor: pointer; }
+ .tab.active { color: #0ea5e9; font-weight: 600; }
+ .tab-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+ .page { display: none; padding: 16px; animation: fade.2s; }
+ .page.active { display: block; }
+  @keyframes fade { from { opacity: 0; } }
+ .card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #334155; }
+ .card-title { font-size: 14px; color: #94a3b8; margin-bottom: 8px; }
+ .card-value { font-size: 24px; font-weight: 700; color: #0ea5e9; }
+ .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  input, select, button, textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 16px; margin-bottom: 12px; }
+  button { background: #0ea5e9; border: none; font-weight: 600; cursor: pointer; }
+  button:active { opacity:.8; }
+  button.secondary { background: #334155; }
+  button.danger { background: #ef4444; }
+  button.success { background: #10b981; }
+ .list-item { background: #1e293b; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+ .badge { background: #334155; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+ .badge.red { background: #ef4444; }
+ .badge.green { background: #10b981; }
+ .badge.yellow { background: #f59e0b; }
+ .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+ .switch input { opacity: 0; width: 0; height: 0; }
+ .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #334155; transition:.2s; border-radius: 26px; }
+ .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background: white; transition:.2s; border-radius: 50%; }
+  input:checked +.slider { background: #0ea5e9; }
+  input:checked +.slider:before { transform: translateX(24px); }
+ .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #10b981; padding: 12px 20px; border-radius: 8px; font-weight: 600; z-index: 100; display: none; }
+ .sync-status { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 8px; }
+ .progress-bar { background: #334155; border-radius: 8px; height: 8px; overflow: hidden; margin-top: 8px; }
+ .progress-fill { background: #10b981; height: 100%; transition: width .3s; }
+ .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 50; justify-content: center; align-items: center; }
+ .modal.active { display: flex; }
+ .modal-content { background: #1e293b; padding: 24px; border-radius: 12px; width: 90%; max-width: 400px; }
+ .scanner-video { width: 100%; border-radius: 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span>💊 Balcão Suplementos</span>
+  <button style="width:auto; padding:6px 12px; font-size:12px;" onclick="abrirFechamento()">Fechar Caixa</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="page active" id="page-dash">
+  <div class="card">
+    <div class="card-title">Meta Diária - R$ <span id="metaValor">500</span></div>
+    <div class="card-value">R$ <span id="vendasHoje">0</span> / R$ <span id="metaDiaria">500</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressMeta" style="width:0%"></div></div>
+    <div style="font-size:12px; color:#94a3b8; margin-top:4px;"><span id="percentMeta">0%</span> batido</div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="card-title">Lucro Hoje</div><div class="card-value" id="lucroHoje">R$ 0</div></div>
+    <div class="card"><div class="card-title">Ticket Médio</div><div class="card-value" id="ticketMedio">R$ 0</div></div>
+    <div class="card"><div class="card-title">Estoque Baixo</div><div class="card-value" id="estoqueBaixo">0</div></div>
+    <div class="card"><div class="card-title">Vendas</div><div class="card-value" id="qtdVendas">0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Vendas Últimos 7 Dias</div>
+    <canvas id="chartVendas" height="200"></canvas>
+  </div>
+</div>
+
+<div class="page" id="page-venda">
+  <div class="card">
+    <button class="secondary" onclick="abrirScanner()" style="margin-bottom:12px;">📷 Ler Código de Barras</button>
+    <select id="vendaProduto"><option value="">Selecione o produto</option></select>
+    <input type="number" id="vendaQtd" placeholder="Quantidade" min="1" value="1">
+    <input type="number" id="vendaPreco" placeholder="Preço de venda" step="0.01">
+    <div id="alertaPrejuizo" style="display:none; background:#ef4444; padding:8px; border-radius:6px; margin-bottom:12px; font-size:14px;">⚠️ Preço abaixo do custo! Prejuízo de R$ <span id="valorPrejuizo">0</span></div>
+    <button onclick="registrarVenda()">Registrar Venda</button>
+  </div>
+  <div id="ultimasVendas"></div>
+</div>
+
+<div class="page" id="page-produtos">
+  <div class="card">
+    <input id="prodCodigo" placeholder="Código de barras - opcional">
+    <input id="prodNome" placeholder="Nome do produto">
+    <input type="number" id="prodCusto" placeholder="Custo" step="0.01" oninput="calcularPrecoIdeal()">
+    <input type="number" id="prodMargem" placeholder="Margem %" step="1" oninput="calcularPrecoIdeal()">
+    <input type="number" id="prodMargemMin" placeholder="Margem mínima % - trava prejuízo" step="1" value="0">
+    
+    <div class="card" style="background:#0f172a; margin: 12px 0;">
+      <div class="card-title">Preço de Venda Ideal</div>
+      <div class="card-value" id="precoIdeal">R$ 0,00</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;" id="lucroIdeal">Lucro: R$ 0,00</div>
+    </div>
+    
+    <input type="number" id="prodEstoque" placeholder="Estoque inicial" min="0">
+    <input type="number" id="prodEstoqueMin" placeholder="Estoque mínimo" min="0">
+    <button onclick="salvarProduto()">Salvar Produto</button>
+  </div>
+  <div id="listaProdutos"></div>
+</div>
+
+<div class="page" id="page-despesas">
+  <div class="card">
+    <input id="despDesc" placeholder="Descrição">
+    <input type="number" id="despValor" placeholder="Valor" step="0.01">
+    <select id="despCategoria">
+      <option value="Fornecedor">Fornecedor</option>
+      <option value="Aluguel">Aluguel</option>
+      <option value="Luz">Luz</option>
+      <option value="Internet">Internet</option>
+      <option value="Outros">Outros</option>
+    </select>
+    <button onclick="salvarDespesa()">Adicionar Despesa</button>
+  </div>
+  <div id="listaDespesas"></div>
+</div>
+
+<div class="page" id="page-config">
+  <div class="card">
+    <div class="card-title">Meta Diária de Vendas</div>
+    <input type="number" id="configMeta" placeholder="500" step="50" value="500">
+    <button onclick="salvarMeta()">Salvar Meta</button>
+  </div>
+  <div class="card">
+    <div class="card-title">URL do Google Apps Script</div>
+    <input id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span>Sincronização Automática</span>
+      <label class="switch"><input type="checkbox" id="autoSync"><span class="slider"></span></label>
+    </div>
+    <button onclick="salvarConfig()">Salvar Configuração</button>
+    <button class="secondary" onclick="sincronizarAgora()">Sincronizar Agora</button>
+    <div class="sync-status" id="syncStatus">Offline</div>
+  </div>
+</div>
+
+<div class="modal" id="modalScanner">
+  <div class="modal-content">
+    <div class="card-title">Aponte para o código de barras</div>
+    <video id="scannerVideo" class="scanner-video" autoplay></video>
+    <button class="danger" onclick="fecharScanner()">Fechar</button>
+  </div>
+</div>
+
+<div class="modal" id="modalFechamento">
+  <div class="modal-content">
+    <div class="card-title">Fechamento de Caixa - <span id="dataFechamento"></span></div>
+    <div class="list-item"><span>Total Vendas</span><span class="badge green" id="fechaVendas">R$ 0</span></div>
+    <div class="list-item"><span>Lucro Bruto</span><span class="badge green" id="fechaLucro">R$ 0</span></div>
+    <div class="list-item"><span>Despesas</span><span class="badge red" id="fechaDespesas">R$ 0</span></div>
+    <div class="list-item"><span>Lucro Líquido</span><span class="badge" id="fechaLiquido">R$ 0</span></div>
+    <div class="list-item"><span>Qtd Vendas</span><span class="badge" id="fechaQtd">0</span></div>
+    <input type="number" id="fechaDinheiro" placeholder="Dinheiro em caixa" step="0.01">
+    <input type="number" id="fechaPix" placeholder="Total PIX" step="0.01">
+    <button class="success" onclick="confirmarFechamento()">Confirmar Fechamento</button>
+    <button class="secondary" onclick="fecharModalFechamento()">Cancelar</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="abrirTab('dash')"><span class="tab-icon">📊</span>Dashboard</div>
+  <div class="tab" onclick="abrirTab('venda')"><span class="tab-icon">💰</span>Venda</div>
+  <div class="tab" onclick="abrirTab('produtos')"><span class="tab-icon">📦</span>Produtos</div>
+  <div class="tab" onclick="abrirTab('despesas')"><span class="tab-icon">💸</span>Despesas</div>
+  <div class="tab" onclick="abrirTab('config')"><span class="tab-icon">⚙️</span>Config</div>
+</div>
+
+<script>
+let DB = { produtos: [], vendas: [], despesas: [], fechamentos: [], config: { scriptUrl: '', autoSync: false, metaDiaria: 500 } };
+let chartVendas = null;
+let streamScanner = null;
+
+function loadDB() {
+  const saved = localStorage.getItem('balcaoDB');
+  if (saved) DB = JSON.parse(saved);
+  document.getElementById('scriptUrl').value = DB.config.scriptUrl || '';
+  document.getElementById('autoSync').checked = DB.config.autoSync || false;
+  document.getElementById('configMeta').value = DB.config.metaDiaria || 500;
+  atualizarTudo();
+  if (DB.config.autoSync && DB.config.scriptUrl) sincronizarAgora();
+}
+
+function saveDB() {
+  localStorage.setItem('balcaoDB', JSON.stringify(DB));
+  atualizarTudo();
+}
+
+function toast(msg, color='#10b981') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2000);
+}
+
+function abrirTab(nome) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + nome).classList.add('active');
+  event.target.closest('.tab').classList.add('active');
+}
+
+function salvarConfig() {
+  DB.config.scriptUrl = document.getElementById('scriptUrl').value.trim();
+  DB.config.autoSync = document.getElementById('autoSync').checked;
+  saveDB();
+  toast('Config salvo!');
+  if (DB.config.autoSync) sincronizarAgora();
+}
+
+function salvarMeta() {
+  DB.config.metaDiaria = parseFloat(document.getElementById('configMeta').value) || 500;
+  saveDB();
+  toast('Meta atualizada!');
+}
+
+async function sincronizarAgora() {
+  if (!DB.config.scriptUrl) return toast('Cola a URL do script primeiro', '#ef4444');
+  document.getElementById('syncStatus').textContent = 'Sincronizando...';
+  try {
+    const res = await fetch(DB.config.scriptUrl);
+    const dados = await res.json();
+    DB.produtos = dados.produtos || [];
+    DB.vendas = dados.vendas || [];
+    DB.despesas = dados.despesas || [];
+    saveDB();
+    document.getElementById('syncStatus').textContent = 'Sincronizado ' + new Date().toLocaleTimeString();
+    toast('Dados atualizados!');
+  } catch (e) {
+    document.getElementById('syncStatus').textContent = 'Erro ao sincronizar';
+    toast('Erro: ' + e.message, '#ef4444');
+  }
+}
+
+async function enviarPlanilha(tipo, dados) {
+  if (!DB.config.autoSync || !DB.config.scriptUrl) return;
+  try {
+    await fetch(DB.config.scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ type: tipo, ...dados })
+    });
+    document.getElementById('syncStatus').textContent = 'Enviado ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('syncStatus').textContent = 'Falha ao enviar';
+  }
+}
+
+function calcularPrecoIdeal() {
+  const custo = parseFloat(document.getElementById('prodCusto').value) || 0;
+  const margem = parseFloat(document.getElementById('prodMargem').value) || 0;
+  const preco = custo * (1 + margem / 100);
+  const lucro = preco - custo;
+  
+  document.getElementById('precoIdeal').textContent = 'R$ ' + preco.toFixed(2).replace('.', ',');
+  document.getElementById('lucroIdeal').textContent = 'Lucro: R$ ' + lucro.toFixed(2).replace('.', ',');
+}
+
+function salvarProduto() {
+  const p = {
+    codigo: document.getElementById('prodCodigo').value.trim(),
+    nome: document.getElementById('prodNome').value,
+    custo: parseFloat(document.getElementById('prodCusto').value),
+    margem: parseFloat(document.getElementById('prodMargem').value),
+    margemMin: parseFloat(document.getElementById('prodMargemMin').value) || 0,
+    estoqueAtual: parseInt(document.getElementById('prodEstoque').value),
+    estoqueMinimo: parseInt(document.getElementById('prodEstoqueMin').value)
+  };
+  if (!p.nome || isNaN(p.custo)) return toast('Preenche nome e custo', '#ef4444');
+  p.preco = p.custo * (1 + p.margem / 100);
+  const idx = DB.produtos.findIndex(x => x.nome === p.nome || (p.codigo && x.codigo === p.codigo));
+  if (idx >= 0) DB.produtos[idx] = p; else DB.produtos.push(p);
+  saveDB();
+  enviarPlanilha('produto', p);
+  document.querySelectorAll('#prodCodigo,#prodNome,#prodCusto,#prodMargem,#prodMargemMin,#prodEstoque,#prodEstoqueMin').forEach(i => i.value = '');
+  document.getElementById('precoIdeal').textContent = 'R$ 0,00';
+  document.getElementById('lucroIdeal').textContent = 'Lucro: R$ 0,00';
+  toast('Produto salvo!');
+}
+
+function verificarPrejuizo() {
+  const nome = document.getElementById('vendaProduto').value;
+  const preco = parseFloat(document.getElementById('vendaPreco').value);
+  const prod = DB.produtos.find(p => p.nome === nome);
+  if (!prod || !preco) {
+    document.getElementById('alertaPrejuizo').style.display = 'none';
+    return true;
+  }
+  const margemAtual = ((preco - prod.custo) / prod.custo) * 100;
+  if (preco < prod.custo || margemAtual < prod.margemMin) {
+    const prejuizo = prod.custo - preco;
+    document.getElementById('valorPrejuizo').textContent = prejuizo.toFixed(2);
+    document.getElementById('alertaPrejuizo').style.display = 'block';
+    return false;
+  }
+  document.getElementById('alertaPrejuizo').style.display = 'none';
+  return true;
+}
+
+function registrarVenda() {
+  const nome = document.getElementById('vendaProduto').value;
+  const qtd = parseInt(document.getElementById('vendaQtd').value);
+  const preco = parseFloat(document.getElementById('vendaPreco').value);
+  const prod = DB.produtos.find(p => p.nome === nome);
+  if (!prod || !qtd || !preco) return toast('Preenche tudo', '#ef4444');
+  if (prod.estoqueAtual < qtd) return toast('Estoque insuficiente', '#ef4444');
+  if (!verificarPrejuizo()) return toast('Venda bloqueada: abaixo da margem mínima', '#ef4444');
+  prod.estoqueAtual -= qtd;
+  const v = { data: new Date().toISOString(), produto: nome, qtd, total: preco * qtd, lucro: (preco - prod.custo) * qtd, custoTotal: prod.custo * qtd };
+  DB.vendas.unshift(v);
+  saveDB();
+  enviarPlanilha('venda', v);
+  document.getElementById('vendaQtd').value = 1;
+  document.getElementById('vendaPreco').value = '';
+  toast('Venda registrada!');
+}
+
+function salvarDespesa() {
+  const d = {
+    desc: document.getElementById('despDesc').value,
+    valor: parseFloat(document.getElementById('despValor').value),
+    categoria: document.getElementById('despCategoria').value,
+    data: new Date().toISOString()
+  };
+  if (!d.desc || !d.valor) return toast('Preenche tudo', '#ef4444');
+  DB.despesas.unshift(d);
+  saveDB();
+  enviarPlanilha('despesa', d);
+  document.getElementById('despDesc').value = '';
+  document.getElementById('despValor').value = '';
+  toast('Despesa adicionada!');
+}
+
+function abrirFechamento() {
+  const hoje = new Date().toDateString();
+  const vendasHoje = DB.vendas.filter(v => new Date(v.data).toDateString() === hoje);
+  const despesasHoje = DB.despesas.filter(d => new Date(d.data).toDateString() === hoje);
+  const totalVendas = vendasHoje.reduce((s, v) => s + v.total, 0);
+  const lucroBruto = vendasHoje.reduce((s, v) => s + v.lucro, 0);
+  const totalDespesas = despesasHoje.reduce((s, d) => s + d.valor, 0);
+  const liquido = lucroBruto - totalDespesas;
+  
+  document.getElementById('dataFechamento').textContent = new Date().toLocaleDateString();
+  document.getElementById('fechaVendas').textContent = 'R$ ' + totalVendas.toFixed(2);
+  document.getElementById('fechaLucro').textContent = 'R$ ' + lucroBruto.toFixed(2);
+  document.getElementById('fechaDespesas').textContent = 'R$ ' + totalDespesas.toFixed(2);
+  document.getElementById('fechaLiquido').textContent = 'R$ ' + liquido.toFixed(2);
+  document.getElementById('fechaQtd').textContent = vendasHoje.length;
+  document.getElementById('modalFechamento').classList.add('active');
+}
+
+function fecharModalFechamento() {
+  document.getElementById('modalFechamento').classList.remove('active');
+}
+
+function confirmarFechamento() {
+  const dinheiro = parseFloat(document.getElementById('fechaDinheiro').value) || 0;
+  const pix = parseFloat(document.getElementById('fechaPix').value) || 0;
+  const hoje = new Date().toDateString();
+  const vendasHoje = DB.vendas.filter(v => new Date(v.data).toDateString() === hoje);
+  const despesasHoje = DB.despesas.filter(d => new Date(d.data).toDateString() === hoje);
+  
+  const fechamento = {
+    data: new Date().toISOString(),
+    totalVendas: vendasHoje.reduce((s, v) => s + v.total, 0),
+    lucroBruto: vendasHoje.reduce((s, v) => s + v.lucro, 0),
+    despesas: despesasHoje.reduce((s, d) => s + d.valor, 0),
+    dinheiro, pix,
+    qtdVendas: vendasHoje.length
+  };
+  fechamento.lucroLiquido = fechamento.lucroBruto - fechamento.despesas;
+  
+  DB.fechamentos.unshift(fechamento);
+  saveDB();
+  enviarPlanilha('fechamento', fechamento);
+  fecharModalFechamento();
+  toast('Caixa fechado com sucesso!');
+}
+
+async function abrirScanner() {
+  document.getElementById('modalScanner').classList.add('active');
+  try {
+    streamScanner = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('scannerVideo');
+    video.srcObject = streamScanner;
+    video.play();
+    // Simulação: em produção usar biblioteca como QuaggaJS ou ZXing
+    video.onclick = () => {
+      const codigo = prompt('Digite o código de barras ou use leitor externo:');
+      if (codigo) buscarProdutoPorCodigo(codigo);
+      fecharScanner();
+    };
+  } catch (e) {
+    toast('Erro ao acessar câmera', '#ef4444');
+    fecharScanner();
+  }
+}
+
+function fecharScanner() {
+  if (streamScanner) {
+    streamScanner.getTracks().forEach(t => t.stop());
+    streamScanner = null;
+  }
+  document.getElementById('modalScanner').classList.remove('active');
+}
+
+function buscarProdutoPorCodigo(codigo) {
+  const prod = DB.produtos.find(p => p.codigo === codigo);
+  if (prod) {
+    abrirTab('venda');
+    document.getElementById('vendaProduto').value = prod.nome;
+    document.getElementById('vendaPreco').value = prod.preco.toFixed(2);
+    toast('Produto encontrado: ' + prod.nome);
+  } else {
+    toast('Produto não cadastrado', '#f59e0b');
+    abrirTab('produtos');
+    document.getElementById('prodCodigo').value = codigo;
+  }
+}
+
+function atualizarTudo() {
+  const hoje = new Date().toDateString();
+  const vendasHoje = DB.vendas.filter(v => new Date(v.data).toDateString() === hoje);
+  const totalVendas = vendasHoje.reduce((s, v) => s + v.total, 0);
+  const lucroHoje = vendasHoje.reduce((s, v) => s + v.lucro, 0);
+  const meta = DB.config.metaDiaria || 500;
+  const percentMeta = Math.min(100, (totalVendas / meta) * 100);
+  
+  document.getElementById('metaValor').textContent = meta;
+  document.getElementById('metaDiaria').textContent = meta;
+  document.getElementById('vendasHoje').textContent = totalVendas.toFixed(2);
+  document.getElementById('progressMeta').style.width = percentMeta + '%';
+  document.getElementById('percentMeta').textContent = percentMeta.toFixed(0) + '%';
+  document.getElementById('lucroHoje').textContent = 'R$ ' + lucroHoje.toFixed(2);
+  document.getElementById('ticketMedio').textContent = 'R$ ' + (vendasHoje.length ? (totalVendas / vendasHoje.length).toFixed(2) : '0.00');
+  document.getElementById('estoqueBaixo').textContent = DB.produtos.filter(p => p.estoqueAtual <= p.estoqueMinimo).length;
+  document.getElementById('qtdVendas').textContent = vendasHoje.length;
+
+  // Gráfico últimos 7 dias
+  const dias = [];
+  const valores = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const ds = d.toDateString();
+    const vendasDia = DB.vendas.filter(v => new Date(v.data).toDateString() === ds);
+    dias.push(d.toLocaleDateString('pt-BR', { weekday: 'short' }));
+    valores.push(vendasDia.reduce((s, v) => s + v.total, 0));
+  }
+  if (chartVendas) chartVendas.destroy();
+  chartVendas = new Chart(document.getElementById('chartVendas'), {
+    type: 'bar',
+    data: { labels: dias, datasets: [{ label: 'Vendas', data: valores, backgroundColor: '#0ea5e9' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  document.getElementById('vendaProduto').innerHTML = '<option value="">Selecione o produto</option>' +
+    DB.produtos.map(p => `<option value="${p.nome}">${p.nome} - R$ ${p.preco.toFixed(2)} | Est: ${p.estoqueAtual}</option>`).join('');
+
+  document.getElementById('listaProdutos').innerHTML = DB.produtos.map(p => `
+    <div class="list-item">
+      <div><strong>${p.nome}</strong>${p.codigo ? '<br><small>📷 '+p.codigo+'</small>' : ''}<br><small>Custo R$ ${p.custo} | Venda R$ ${p.preco.toFixed(2)} | Min: ${p.margemMin}%</small></div>
+      <span class="badge ${p.estoqueAtual <= p.estoqueMinimo ? 'red' : ''}">${p.estoqueAtual} un</span>
+    </div>`).join('');
+
+  document.getElementById('ultimasVendas').innerHTML = DB.vendas.slice(0, 5).map(v => `
+    <div class="list-item">
+      <div><strong>${v.produto}</strong><br><small>${new Date(v.data).toLocaleString()} | ${v.qtd}x</small></div>
+      <span class="badge green">R$ ${v.total.toFixed(2)}</span>
+    </div>`).join('');
+
+  document.getElementById('listaDespesas').innerHTML = DB.despesas.slice(0, 10).map(d => `
+    <div class="list-item">
+      <div><strong>${d.desc}</strong><br><small>${new Date(d.data).toLocaleDateString()} | ${d.categoria || 'Outros'}</small></div>
+      <span class="badge red">R$ ${d.valor.toFixed(2)}</span>
+    </div>`).join('');
+}
+
+document.getElementById('vendaProduto').addEventListener('change', function() {
+  const prod = DB.produtos.find(p => p.nome === this.value);
+  if (prod) {
+    document.getElementById('vendaPreco').value = prod.preco.toFixed(2);
+    verificarPrejuizo();
+  }
+});
+
+document.getElementById('vendaPreco').addEventListener('input', verificarPrejuizo);
+
+loadDB();
+</script>
+
+</body>
+</html>
